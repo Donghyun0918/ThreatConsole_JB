@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/honeypot_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+server:
+  port: 8080
+
+fastapi:
+  url: ${FASTAPI_URL:http://honeypot-backend:8000}
+
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:honeypot-internal-token}
+
+elasticsearch:
+  host: ${ES_HOST:http://elasticsearch:9200}

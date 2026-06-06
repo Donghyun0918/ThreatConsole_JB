@@ -1,0 +1,22 @@
+node_modules/
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+.env
+.env.local
+.venv/
+venv/
+.idea/
+.vscode/
+
+# 빌드 산출물 (T-Pot 은 docker/*/dist/ 에 필수 설정을 두므로 dist/ 는 제외하지 않음)
+.next/
+.gradle/
+capstone/**/build/
+capstone/**/target/
+
+# 배포 시 생성/주입되는 것
+webpw.txt
+capstone/.env
+capstone/tpotce/

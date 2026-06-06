@@ -1,0 +1,34 @@
+# === 의존성 / 빌드 산출물 ===
+node_modules/
+.next/
+out/
+build/
+.gradle/
+target/
+bin/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+
+# === T-Pot 스냅샷 ===
+# tpot-fork/ 에 원본이 있는 rsync 스냅샷(78MB) + .env 비밀 포함 → 제외
+tpotce/
+
+# === 환경 / 비밀 ===
+.env
+.env.local
+*.env
+!*.env.example
+
+# === 모델 바이너리 ===
+*.pkl
+*.joblib
+
+# === OS / IDE ===
+.DS_Store
+*.iml
+.idea/
+.vscode/
+*.log

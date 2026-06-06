@@ -1,0 +1,4 @@
+# Git LFS — 모델 가중치(대용량 바이너리)만 LFS 로 추적한다.
+# (이전의 `*.json filter=lfs` 규칙은 package.json·tsconfig.json 까지 포인터로
+#  만들어, git lfs pull 없이 clone 하면 빌드가 깨지는 사고를 유발했다 → 제거.)
+*.pkl filter=lfs diff=lfs merge=lfs -text

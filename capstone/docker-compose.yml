@@ -1,0 +1,120 @@
+# 캡스톤 졸작 통합 compose — Spring Boot + Postgres + Next.js + Ollama
+#
+# T-Pot은 별도 (../tpot-fork/)에서 이미 기동 중. 이 compose는 capstone-only
+# 신규 컴포넌트만 띄움. T-Pot의 wordpot/heralding이 호스트 5432/8080을 점유
+# 하므로 capstone은 5433/8090으로 우회.
+#
+# 실행:
+#   cd /mnt/d/T-POT_PR/capstone && docker compose up -d
+#
+# 접속:
+#   Frontend (Next.js)        http://localhost:8001
+#   Spring Boot REST          http://localhost:8090
+#   PostgreSQL                localhost:5433  (postgres / capstone-dev)
+#   Ollama                    http://localhost:11434
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: capstone-postgres
+    environment:
+      POSTGRES_DB: honeypot_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: capstone-dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d honeypot_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 통합 백엔드 (threat-console 흡수본). 구 ./profiling-service 대신 ./backend/honeypot 빌드.
+  # 서비스명은 frontend depends_on 호환을 위해 profiling-service 유지.
+  profiling-service:
+    build: ./backend/honeypot
+    container_name: capstone-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/honeypot_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: capstone-dev
+      # threat-console 조회용 ES — 현재 떠 있는 phase1-es(샘플 데이터 보유)를 호스트 경유로 연결.
+      # T-Pot 인프라(infra_only)를 띄우면 그쪽 ES로 교체.
+      ES_HOST: http://elasticsearch:9200
+      # FastAPI 분석 서비스는 아직 미구성 — attack-log 적재 시 호출하나 데모 화면엔 영향 없음.
+      FASTAPI_URL: http://disabled.local:8000
+      INTERNAL_SERVICE_TOKEN: capstone-internal-token
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8090:8080"
+    restart: unless-stopped
+    networks: [default, tpot]
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: capstone-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 모델 자동 다운로드 (1회성, ollama healthy 후 백그라운드)
+  ollama-model-pull:
+    image: ollama/ollama:latest
+    container_name: capstone-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "llama3.1:8b"]
+    restart: "no"
+
+  frontend:
+    build: ./frontend
+    container_name: capstone-frontend
+    depends_on:
+      - profiling-service
+      - ollama
+    environment:
+      NODE_ENV: production
+      OLLAMA_HOST: http://ollama:11434
+      # LLM 제공자 선택: ollama(기본) | openai | anthropic | gemini | openai-compatible
+      # 키 미설정 시 ollama 로 동작. 다른 제공자는 LLM_PROVIDER 바꾸고 해당 키만 .env 에 채우면 됨.
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Next.js → Spring API 호출 시 컨테이너 네트워크 이름 사용
+      SPRING_API_URL: http://profiling-service:8080
+      # T-Pot 어택맵 리버스프록시 타깃 (커스텀 server.js). map_web 도달하려면
+      # 이 컨테이너를 T-Pot nginx_local 네트워크에 연결해야 함:
+      #   docker network connect <tpot>_nginx_local capstone-frontend
+      TPOT_MAP_TARGET: http://map_web:64299
+    ports:
+      - "127.0.0.1:8001:8001"
+    restart: unless-stopped
+    networks: [default, tpot]
+
+networks:
+  default:
+  tpot:
+    external: true
+    name: tpotce_nginx_local
+
+volumes:
+  postgres_data:
+  ollama_data:
